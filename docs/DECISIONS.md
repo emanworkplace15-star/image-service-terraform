@@ -170,3 +170,30 @@ Verified during end-to-end testing.
    `ecr:GetAuthorizationToken` + pull actions on the app repos — without
    them the helper returns no credential and docker reports the same
    "no basic auth credentials" as above.
+
+## Queue mode — Lambda → backend over SQS (NOTIFY_MODE=sqs)
+
+The processor's success/failure events travel over a standard SQS queue
+(`image-service-events`) instead of a direct API callback:
+
+    uploads/ -> Lambda --(SendMessage)--> SQS --> backend SqsEventConsumerService
+                     \                              |
+                      \_ DLQ (maxReceiveCount 5)    +--> broadcasts the same Socket.IO events as before
+
+- **module `sqs/`**: DLQ (14-day retention) created first; the events queue
+  references it via the redrive policy. Visibility timeout 120 s (≥2x the
+  worst-case Lambda time). Nothing consumes the DLQ — only the redrive
+  writes to it, so it needs no extra policy statements.
+- **Lambda**: `sqs:SendMessage` on the queue ARN; env `NOTIFY_MODE=sqs` +
+  `SQS_QUEUE_URL`. `BACKEND_URL`/`LAMBDA_API_KEY` kept (unused) so rollback
+  to `api` mode is an env-only change.
+- **Backend (instance profile)**: `sqs:ReceiveMessage`, `sqs:DeleteMessage`,
+  `sqs:GetQueueAttributes` on the queue ARN; env vars via backend.env.
+- **Networking**: the instance's NAT gateway already provides egress to the
+  public SQS endpoint — no VPC interface endpoint added (one is only worth
+  it if NAT cost/throughput mattered; dev doesn't).
+- **Deploy order**: a single apply updates both services at once; the
+  backend consumer just starts polling an empty queue. Rollback order
+  (backend first, then Lambda) is documented in the repo's DEPLOYMENT.md.
+- Frontend is untouched in both modes — the backend broadcasts identical
+  Socket.IO events whichever way the event arrived.
