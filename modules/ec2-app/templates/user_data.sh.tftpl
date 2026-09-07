@@ -1,0 +1,128 @@
+#!/bin/bash
+# cloud-init user_data — Amazon Linux 2023
+# Installs Docker + the ECR credential helper, pulls backend/runtime secrets
+# from Secrets Manager (never keys — the instance role authenticates the API
+# calls), writes the backend env file, and starts both containers from ECR
+# under a systemd unit that retries until the CI-pushed images exist.
+
+set -euo pipefail
+exec > >(tee /var/log/user-data.log | logger -t user-data) 2>&1
+
+echo "== user_data: $(date -u) =="
+
+export AWS_DEFAULT_REGION=${aws_region}
+
+dnf update -y
+dnf install -y docker jq amazon-ecr-credential-helper
+systemctl enable --now docker
+
+# Credential helper: docker resolves ECR credentials through the instance
+# role every pull — no embedded login tokens to expire.
+mkdir -p /root/.docker
+cat >/root/.docker/config.json <<'EOF'
+{ "credsStore": "ecr-login" }
+EOF
+
+ECR_REGISTRY=${ecr_registry}
+
+# ---- secrets from Secrets Manager (fetched via the instance role) ----
+# Retries in case the secret version lands a beat after the instance boots.
+APP_SECRET_NAME=${app_secret_name}
+for i in $(seq 1 80); do   # up to ~20 min: the secret version is written
+  SECRET_JSON=$(aws secretsmanager get-secret-value \
+    --secret-id "$APP_SECRET_NAME" --query SecretString --output text 2>/dev/null || true)
+  [ -n "$SECRET_JSON" ] && [ "$SECRET_JSON" != "None" ] && break
+  echo "secret not ready, retry $i"; sleep 15
+done
+[ -n "$SECRET_JSON" ] || { echo "FATAL: could not read $APP_SECRET_NAME"; exit 1; }
+
+install -d /opt/image-service
+cat >/opt/image-service/backend.env <<EOF
+DATABASE_URL=$(echo "$SECRET_JSON" | jq -r .DATABASE_URL)
+JWT_SECRET=$(echo "$SECRET_JSON" | jq -r .JWT_SECRET)
+LAMBDA_API_KEY=$(echo "$SECRET_JSON" | jq -r .LAMBDA_API_KEY)
+S3_BUCKET=${s3_bucket}
+AWS_REGION=${aws_region}
+AWS_DEFAULT_REGION=${aws_region}
+CORS_ORIGIN=${cors_origin}
+PORT=${backend_port}
+EOF
+chmod 600 /opt/image-service/backend.env
+
+# ---- start script (retries until images are pushed by CI) ----
+cat >/opt/image-service/start.sh <<'EOF'
+#!/bin/bash
+set -euo pipefail
+export AWS_DEFAULT_REGION=__REGION__
+REGISTRY=__REGISTRY__
+BACKEND="__BACKEND_REPO__:__BACKEND_TAG__"
+FRONTEND="__FRONTEND_REPO__:__FRONTEND_TAG__"
+
+echo "waiting for images to appear in ECR..."
+for i in $(seq 1 60); do   # up to ~30 min
+  if docker pull -q "$REGISTRY/$BACKEND" && docker pull -q "$REGISTRY/$FRONTEND"; then
+    break
+  fi
+  echo "images not available yet (attempt $i), retrying in 30s"
+  sleep 30
+done
+
+docker rm -f backend frontend 2>/dev/null || true
+
+docker run -d --name backend \
+  --restart unless-stopped \
+  --env-file /opt/image-service/backend.env \
+  --log-driver=awslogs \
+  --log-opt awslogs-region=__REGION__ \
+  --log-opt awslogs-group=__BACKEND_LOG_GROUP__ \
+  --log-opt awslogs-stream-prefix=backend \
+  --log-opt awslogs-create-group=false \
+  -p 0.0.0.0:__BACKEND_PORT__:__BACKEND_PORT__ \
+  "$REGISTRY/$BACKEND"
+
+docker run -d --name frontend \
+  --restart unless-stopped \
+  --log-driver=awslogs \
+  --log-opt awslogs-region=__REGION__ \
+  --log-opt awslogs-group=__FRONTEND_LOG_GROUP__ \
+  --log-opt awslogs-stream-prefix=frontend \
+  --log-opt awslogs-create-group=false \
+  -p 0.0.0.0:__FRONTEND_PORT__:__FRONTEND_PORT__ \
+  "$REGISTRY/$FRONTEND"
+
+docker ps --no-trunc
+EOF
+sed -i \
+  -e "s|__REGION__|${aws_region}|g" \
+  -e "s|__REGISTRY__|$ECR_REGISTRY|g" \
+  -e "s|__BACKEND_REPO__|${backend_repo}|g" \
+  -e "s|__BACKEND_TAG__|${backend_tag}|g" \
+  -e "s|__FRONTEND_REPO__|${frontend_repo}|g" \
+  -e "s|__FRONTEND_TAG__|${frontend_tag}|g" \
+  -e "s|__BACKEND_LOG_GROUP__|${backend_log_group}|g" \
+  -e "s|__FRONTEND_LOG_GROUP__|${frontend_log_group}|g" \
+  -e "s|__BACKEND_PORT__|${backend_port}|g" \
+  -e "s|__FRONTEND_PORT__|${frontend_port}|g" \
+  /opt/image-service/start.sh
+chmod +x /opt/image-service/start.sh
+
+# ---- systemd unit: starts at every boot, restarts on failure ----
+cat >/etc/systemd/system/image-service.service <<'EOF'
+[Unit]
+Description=Image service containers (backend + frontend from ECR)
+After=docker.service network-online.target
+Wants=docker.service network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/opt/image-service/start.sh
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+systemctl daemon-reload
+systemctl enable --now image-service.service
+
+echo "== user_data done; containers starting under image-service.service =="
