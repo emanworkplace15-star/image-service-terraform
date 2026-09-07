@@ -75,7 +75,6 @@ docker run -d --name backend \
   --log-driver=awslogs \
   --log-opt awslogs-region=__REGION__ \
   --log-opt awslogs-group=__BACKEND_LOG_GROUP__ \
-  --log-opt awslogs-stream-prefix=backend \
   --log-opt awslogs-create-group=false \
   -p 0.0.0.0:__BACKEND_PORT__:__BACKEND_PORT__ \
   "$REGISTRY/$BACKEND"
@@ -85,7 +84,6 @@ docker run -d --name frontend \
   --log-driver=awslogs \
   --log-opt awslogs-region=__REGION__ \
   --log-opt awslogs-group=__FRONTEND_LOG_GROUP__ \
-  --log-opt awslogs-stream-prefix=frontend \
   --log-opt awslogs-create-group=false \
   -p 0.0.0.0:__FRONTEND_PORT__:__FRONTEND_PORT__ \
   "$REGISTRY/$FRONTEND"
