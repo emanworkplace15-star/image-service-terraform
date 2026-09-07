@@ -107,14 +107,16 @@ module "ec2_app" {
     module.ecr.repository_arns.backend,
     module.ecr.repository_arns.frontend,
   ]
-  ecr_registry      = "${local.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
+  sqs_queue_arn = module.sqs.queue_arn
+  sqs_queue_url = module.sqs.queue_url
+  ecr_registry  = "${local.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
   # Bare repo names — the user_data template prefixes the registry itself.
-  backend_repo      = module.ecr.repository_names.backend
-  frontend_repo     = module.ecr.repository_names.frontend
-  image_tag         = local.image_tag
-  aws_region        = var.aws_region
-  s3_bucket         = module.s3.bucket_name
-  cors_origin       = local.frontend_url
+  backend_repo  = module.ecr.repository_names.backend
+  frontend_repo = module.ecr.repository_names.frontend
+  image_tag     = local.image_tag
+  aws_region    = var.aws_region
+  s3_bucket     = module.s3.bucket_name
+  cors_origin   = local.frontend_url
 }
 
 # ---------------- Task 2.6: processor Lambda ----------------
@@ -133,4 +135,21 @@ module "lambda" {
   bucket_arn       = module.s3.bucket_arn
   backend_base_url = local.frontend_url
   lambda_api_key   = jsondecode(data.aws_secretsmanager_secret_version.app.secret_string)["LAMBDA_API_KEY"]
+  sqs_queue_url    = module.sqs.queue_url
+  sqs_queue_arn    = module.sqs.queue_arn
+}
+
+# ---------------- Queue mode: processor-events queue ----------------
+# The Lambda publishes events here instead of calling the backend API
+# directly; the backend's SqsEventConsumerService polls and deletes.
+# Deploy order note: one apply updates both at once — the backend consumer
+# simply starts polling an (initially) empty queue, so no ordering issue.
+# Rollback: NOTIFY_MODE flips back to api in the lambda + ec2 modules.
+
+module "sqs" {
+  source = "../../modules/sqs"
+
+  name_prefix                = local.name_prefix
+  visibility_timeout_seconds = 120 # >= 2x worst-case Lambda processing
+  max_receive_count          = 5
 }

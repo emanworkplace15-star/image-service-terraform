@@ -24,6 +24,7 @@ locals {
     cors_origin        = var.cors_origin
     backend_port       = var.backend_port
     frontend_port      = var.frontend_port
+    sqs_queue_url      = var.sqs_queue_url
   })
 }
 

@@ -73,6 +73,16 @@ variable "ecr_repository_arns" {
   type        = list(string)
 }
 
+variable "sqs_queue_arn" {
+  description = "Processor-events queue ARN the backend consumes (NOTIFY_MODE=sqs)."
+  type        = string
+}
+
+variable "sqs_queue_url" {
+  description = "Processor-events queue URL passed to the backend container env."
+  type        = string
+}
+
 variable "aws_region" {
   description = "AWS region (S3_BUCKET/AWS_REGION env vars + awslogs driver)."
   type        = string

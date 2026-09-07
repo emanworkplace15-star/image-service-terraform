@@ -47,6 +47,17 @@ variable "lambda_api_key" {
   sensitive   = true
 }
 
+variable "sqs_queue_url" {
+  description = "Events queue URL the handler publishes processor events to (NOTIFY_MODE=sqs)."
+  type        = string
+}
+
+variable "sqs_queue_arn" {
+  description = "Events queue ARN (scopes the sqs:SendMessage permission)."
+  type        = string
+  default     = ""
+}
+
 variable "memory_size" {
   description = "Lambda memory (sharp scales with it)."
   type        = number

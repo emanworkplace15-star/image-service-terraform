@@ -46,6 +46,8 @@ AWS_REGION=${aws_region}
 AWS_DEFAULT_REGION=${aws_region}
 CORS_ORIGIN=${cors_origin}
 PORT=${backend_port}
+NOTIFY_MODE=sqs
+SQS_QUEUE_URL=${sqs_queue_url}
 EOF
 chmod 600 /opt/image-service/backend.env
 

@@ -64,6 +64,16 @@ data "aws_iam_policy_document" "execution_permissions" {
     resources = ["${var.bucket_arn}/processed/*"]
   }
 
+  # Publishes processor events to the events queue (NOTIFY_MODE=sqs).
+  statement {
+    sid    = "PublishProcessorEvents"
+    effect = "Allow"
+    actions = [
+      "sqs:SendMessage",
+    ]
+    resources = [var.sqs_queue_arn]
+  }
+
   statement {
     sid    = "LambdaLogs"
     effect = "Allow"
@@ -115,9 +125,10 @@ resource "aws_lambda_function" "processor" {
 
   environment {
     variables = {
-      BACKEND_URL    = var.backend_base_url # e.g. http://<alb-dns> — /internal/* is path-routed to the API
-      LAMBDA_API_KEY = var.lambda_api_key   # app-level shared secret, not an AWS credential
-      NOTIFY_MODE    = "api"
+      BACKEND_URL    = var.backend_base_url # unused in sqs mode; kept for the api rollback path
+      LAMBDA_API_KEY = var.lambda_api_key   # unused in sqs mode; kept for the api rollback path
+      NOTIFY_MODE    = "sqs"
+      SQS_QUEUE_URL  = var.sqs_queue_url
       MAX_WIDTH      = "2000"
       JPEG_QUALITY   = "80"
       TARGET_BUCKET  = var.bucket_name

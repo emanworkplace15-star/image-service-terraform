@@ -103,7 +103,20 @@ data "aws_iam_policy_document" "instance_permissions" {
     resources = var.ecr_repository_arns
   }
 
-  # 5. Container stdout -> CloudWatch Logs (awslogs docker driver).
+  # 5. SQS consumer — polls the processor-events queue (NOTIFY_MODE=sqs),
+  #    deletes messages after handling; poison messages redrive to the DLQ.
+  statement {
+    sid    = "ConsumeProcessorEvents"
+    effect = "Allow"
+    actions = [
+      "sqs:ReceiveMessage",
+      "sqs:DeleteMessage",
+      "sqs:GetQueueAttributes",
+    ]
+    resources = [var.sqs_queue_arn]
+  }
+
+  # 6. Container stdout -> CloudWatch Logs (awslogs docker driver).
   statement {
     sid    = "ContainerLogs"
     effect = "Allow"

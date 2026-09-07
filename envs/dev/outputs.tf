@@ -42,3 +42,12 @@ output "lambda_function_name" {
   description = "Processor Lambda (null until create_lambda = true)."
   value       = module.lambda.function_name
 }
+output "sqs_queue_url" {
+  description = "Processor-events queue URL (backend consumer + Lambda publisher)."
+  value       = module.sqs.queue_url
+}
+
+output "sqs_dlq_url" {
+  description = "Processor-events DLQ URL (should stay empty)."
+  value       = module.sqs.dlq_url
+}
