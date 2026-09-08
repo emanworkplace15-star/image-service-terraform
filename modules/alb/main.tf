@@ -156,3 +156,24 @@ resource "aws_lb_listener_rule" "backend_internal" {
     }
   }
 }
+
+# Socket.IO realtime gateway: the browser's websocket handshake goes to
+# /socket.io/* (long-polling handshake first, then the ws upgrade). Without
+# this rule those requests fall through to the default frontend rule and
+# the connection never reaches the backend's gateway. The ALB forwards
+# websocket upgrades natively — no extra listener config needed.
+resource "aws_lb_listener_rule" "backend_socketio" {
+  listener_arn = aws_lb_listener.http.arn
+  priority     = 40
+
+  action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.backend.arn
+  }
+
+  condition {
+    path_pattern {
+      values = ["/socket.io/*", "/socket.io"]
+    }
+  }
+}
