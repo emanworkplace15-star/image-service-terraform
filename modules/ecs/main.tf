@@ -89,10 +89,11 @@ resource "aws_ecs_task_definition" "backend" {
       logConfiguration = {
         logDriver = "awslogs"
         options = {
-          awslogs-group        = aws_cloudwatch_log_group.backend.name
-          awslogs-region       = var.aws_region
+          awslogs-group         = aws_cloudwatch_log_group.backend.name
+          awslogs-region        = var.aws_region
           awslogs-stream-prefix = "backend"
-          awslogs-create-group = "false"
+          # no awslogs-create-group: Fargate rejects it when false, and
+          # Terraform creates the group anyway
         }
       }
     }
@@ -131,7 +132,8 @@ resource "aws_ecs_task_definition" "frontend" {
           awslogs-group         = aws_cloudwatch_log_group.frontend.name
           awslogs-region        = var.aws_region
           awslogs-stream-prefix = "frontend"
-          awslogs-create-group  = "false"
+          # no awslogs-create-group: Fargate rejects it when false, and
+          # Terraform creates the group anyway
         }
       }
     }

@@ -13,5 +13,5 @@ variable "vpc_cidr" {
 variable "create_lambda" {
   description = "false on a clean account until the first CI image push; then set true and re-apply."
   type        = bool
-  default     = true
+  default     = false
 }
