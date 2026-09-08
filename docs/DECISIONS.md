@@ -197,3 +197,36 @@ The processor's success/failure events travel over a standard SQS queue
   (backend first, then Lambda) is documented in the repo's DEPLOYMENT.md.
 - Frontend is untouched in both modes — the backend broadcasts identical
   Socket.IO events whichever way the event arrived.
+
+## Compute swap — EC2 instance → ECS Fargate
+
+The app platform changed from one EC2 instance to two Fargate services;
+everything else (ALB paths, queue mode, secret storage, keyless IAM) stayed.
+
+- **Roles, same pattern as EC2 but doubled**: `execution` role (launch-time:
+  ECR pull, awslogs, reading the Secrets Manager entries the task def
+  injects) vs `backend task role` (runtime: S3 + SQS consumer — same policy
+  text the instance profile had). The frontend gets a privilegeless task
+  role so its credential chain stays well-formed.
+- **Secrets**: the task definition `secrets` block injects DATABASE_URL /
+  JWT_SECRET / LAMBDA_API_KEY straight from Secrets Manager at launch —
+  the user_data fetch-and-write-env-file dance is gone. Syntax:
+  `<secret-arn>:<JSON_KEY>::`.
+- **ALB**: target groups flipped to `target_type = "ip"` (task ENIs); the
+  services register themselves via their `load_balancer` block. The
+  `/socket.io/*` listener rule (priority 40) lives in the alb module.
+- **Fargate gotchas we hit**:
+  - `awslogs-create-group = "false"` is rejected (only `true` or omit) —
+    Terraform creates the groups anyway, so the option is omitted.
+  - The EC2 docker daemon rejected `awslogs-stream-prefix`; Fargate
+    accepts it — the two runtimes are NOT interchangeable on log options.
+- **`latest` tag + ECS**: pushing a new image to ECR does NOT redeploy the
+  service (tag is unchanged). After CI pushes, run
+  `aws ecs update-service --cluster image-service --service <svc> --force-new-deployment`.
+- **Admin seed on ECS**: no SSM/exec (deliberately not enabled), so the
+  seed ran as a one-off Fargate task — same task definition, only
+  `command` (node -e prisma upsert w/ bcrypt) + `ADMIN_PW` env overridden;
+  network config copied from the running task's ENI.
+- The `ec2-app/` module stays on disk unplugged; `create_lambda` now
+  defaults to `false` (clean accounts) and is flipped with
+  `-var="create_lambda=true"` once the lambda image is in ECR.
