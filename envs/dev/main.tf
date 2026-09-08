@@ -90,33 +90,31 @@ module "alb" {
   vpc_id                = module.networking.vpc_id
   public_subnet_ids     = module.networking.public_subnet_ids
   alb_security_group_id = module.networking.alb_security_group_id
-  instance_id           = module.ec2_app.instance_id
+  # ip targets: the ECS services register their Fargate tasks themselves.
+  target_type = "ip"
 }
 
-# ---------------- Task 2.3 Option A: EC2 compute ----------------
+# ---------------- Task 2.3 Option B: ECS Fargate compute ----------------
+# Same app, same ALB routing, same queue mode, same no-static-keys rule —
+# only the compute platform changed (EC2 instance → Fargate tasks).
 
-module "ec2_app" {
-  source = "../../modules/ec2-app"
+module "ecs" {
+  source = "../../modules/ecs"
 
-  private_subnet_id = module.networking.private_subnet_ids[0] # same AZ as the NAT gateway
-  security_group_id = module.networking.app_security_group_id
-  app_secret_name   = module.rds.app_secret_name
-  app_secret_arn    = module.rds.app_secret_arn
-  bucket_arn        = module.s3.bucket_arn
-  ecr_repository_arns = [
-    module.ecr.repository_arns.backend,
-    module.ecr.repository_arns.frontend,
-  ]
-  sqs_queue_arn = module.sqs.queue_arn
-  sqs_queue_url = module.sqs.queue_url
-  ecr_registry  = "${local.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
-  # Bare repo names — the user_data template prefixes the registry itself.
-  backend_repo  = module.ecr.repository_names.backend
-  frontend_repo = module.ecr.repository_names.frontend
-  image_tag     = local.image_tag
-  aws_region    = var.aws_region
-  s3_bucket     = module.s3.bucket_name
-  cors_origin   = local.frontend_url
+  name_prefix               = "image-service"
+  private_subnet_ids        = module.networking.private_subnet_ids
+  security_group_id         = module.networking.app_security_group_id
+  backend_target_group_arn  = module.alb.backend_target_group_arn
+  frontend_target_group_arn = module.alb.frontend_target_group_arn
+  app_secret_arn            = module.rds.app_secret_arn
+  bucket_arn                = module.s3.bucket_arn
+  sqs_queue_arn             = module.sqs.queue_arn
+  sqs_queue_url             = module.sqs.queue_url
+  ecr_registry              = "${local.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
+  image_tag                 = local.image_tag
+  s3_bucket                 = module.s3.bucket_name
+  aws_region                = var.aws_region
+  cors_origin               = local.frontend_url
 }
 
 # ---------------- Task 2.6: processor Lambda ----------------

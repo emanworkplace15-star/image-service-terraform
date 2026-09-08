@@ -33,9 +33,19 @@ output "github_actions_role_arn" {
   value       = module.github_oidc.role_arn
 }
 
-output "app_instance_id" {
-  description = "App EC2 instance (SSM Session Manager to reach it)."
-  value       = module.ec2_app.instance_id
+output "ecs_cluster_name" {
+  description = "ECS cluster (services live here — aws ecs describe-services to debug)."
+  value       = module.ecs.cluster_name
+}
+
+output "ecs_service_ids" {
+  description = "Backend and frontend service ids (rollouts / debugging)."
+  value       = { backend = module.ecs.backend_service_id, frontend = module.ecs.frontend_service_id }
+}
+
+output "backend_task_role_arn" {
+  description = "Backend runtime role (S3 + SQS consumer) — injected via task role."
+  value       = module.ecs.task_role_arn
 }
 
 output "lambda_function_name" {

@@ -19,9 +19,10 @@ variable "alb_security_group_id" {
   type        = string
 }
 
-variable "instance_id" {
-  description = "App instance ID registered to both target groups."
+variable "target_type" {
+  description = "Target group target type: 'ip' for ECS Fargate tasks."
   type        = string
+  default     = "ip"
 }
 
 variable "frontend_port" {

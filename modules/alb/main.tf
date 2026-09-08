@@ -16,8 +16,9 @@ resource "aws_lb_target_group" "frontend" {
   protocol = "HTTP"
   vpc_id   = var.vpc_id
 
-  # ALB -> instance: no TLS termination needed on the host, plain HTTP.
-  target_type = "instance"
+  # ALB -> Fargate task ENIs (ip targets): each ECS task registers itself
+  # through the service's load_balancer block — no static attachments here.
+  target_type = var.target_type
 
   health_check {
     enabled             = true
@@ -41,7 +42,7 @@ resource "aws_lb_target_group" "backend" {
   protocol = "HTTP"
   vpc_id   = var.vpc_id
 
-  target_type = "instance"
+  target_type = var.target_type
 
   # The API has no unauthenticated health endpoint; any auth-protected route
   # answers 401 within seconds, which proves the process is up. 2xx-4xx is
@@ -66,17 +67,8 @@ resource "aws_lb_target_group" "backend" {
   })
 }
 
-resource "aws_lb_target_group_attachment" "frontend" {
-  target_group_arn = aws_lb_target_group.frontend.arn
-  target_id        = var.instance_id
-  port             = var.frontend_port
-}
-
-resource "aws_lb_target_group_attachment" "backend" {
-  target_group_arn = aws_lb_target_group.backend.arn
-  target_id        = var.instance_id
-  port             = var.backend_port
-}
+# Target registration is owned by the ECS services (load_balancer blocks) —
+# no static instance attachments here anymore.
 
 # ---------------- ALB ----------------
 
