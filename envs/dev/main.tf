@@ -45,20 +45,28 @@ module "github_oidc" {
     "image-service-frontend",
     "image-processor-lambda",
   ]
-  lambda_function_name        = "image-processor-lambda"
-  aws_region                  = var.aws_region
-  ecr_repository_arns         = values(module.ecr.repository_arns)
-  static_bucket_arn           = module.static_site.bucket_arn
-  cloudfront_distribution_arn = "arn:aws:cloudfront::${local.account_id}:distribution/${module.static_site.distribution_id}"
+  lambda_function_name = "image-processor-lambda"
+  aws_region           = var.aws_region
+  ecr_repository_arns  = values(module.ecr.repository_arns)
+  static_bucket_arn    = module.static_site.bucket_arn
+  # Website mode: no distribution exists yet, but the IAM policy needs a
+  # syntactically valid ARN — harmless placeholder until CloudFront is
+  # account-verified and use_cloudfront flips to true.
+  cloudfront_distribution_arn = (module.static_site.cloudfront_arn != ""
+    ? module.static_site.cloudfront_arn
+  : "arn:aws:cloudfront::${local.account_id}:distribution/none")
 }
 
 # ---------------- Static frontend (replaces the ECS frontend service) ----
-# Next.js static export built by CI, synced to S3, served via CloudFront.
+# Next.js static export built by CI, synced to S3. CloudFront is blocked at
+# the account level until verification, so dev serves via the S3 website
+# endpoint (HTTP) — flip use_cloudfront once verified.
 
 module "static_site" {
   source = "../../modules/static-site"
 
-  name_prefix = local.name_prefix
+  name_prefix    = local.name_prefix
+  use_cloudfront = false
 }
 
 # ---------------- Task 2.1: network ----------------
