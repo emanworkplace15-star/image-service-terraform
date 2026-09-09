@@ -166,9 +166,13 @@ resource "aws_s3_bucket_website_configuration" "static" {
 
 # Anonymous GET on objects — the website endpoint serves only what's here,
 # and nothing in the bucket is secret (it's the public site itself).
+# depends_on: the public-access block must stop blocking public *policies*
+# before this policy can be attached (otherwise PutBucketPolicy 403s).
 resource "aws_s3_bucket_policy" "website_public_read" {
   count  = var.use_cloudfront ? 0 : 1
   bucket = aws_s3_bucket.static.id
+
+  depends_on = [aws_s3_bucket_public_access_block.static]
 
   policy = jsonencode({
     Version = "2012-10-17"
