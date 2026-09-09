@@ -59,8 +59,9 @@ module "github_oidc" {
 
 # ---------------- Static frontend (replaces the ECS frontend service) ----
 # Next.js static export built by CI, synced to S3. CloudFront is blocked at
-# the account level until verification, so dev serves via the S3 website
-# endpoint (HTTP) — flip use_cloudfront once verified.
+# the account level ("must be verified" 403 — tested twice, 2026-09-09), so
+# dev serves via the S3 website endpoint (HTTP). Once AWS Support verifies
+# the account for CloudFront, flip use_cloudfront to true.
 
 module "static_site" {
   source = "../../modules/static-site"
