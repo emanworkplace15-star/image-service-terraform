@@ -124,6 +124,21 @@ data "aws_iam_policy_document" "github_actions_permissions" {
       "arn:${data.aws_partition.current.partition}:lambda:${var.aws_region}:${local.account_id}:function:${local.lambda_name}",
     ]
   }
+
+  # 4. After an image push, tell the ECS service to start a new deployment
+  # (rolling). ECS never watches ECR by itself — the pipeline is the trigger.
+  statement {
+    sid    = "EcsRedeployAppServices"
+    effect = "Allow"
+    actions = [
+      "ecs:UpdateService",
+      "ecs:DescribeServices",
+    ]
+    resources = [
+      "arn:${data.aws_partition.current.partition}:ecs:${var.aws_region}:${local.account_id}:service/image-service/backend",
+      "arn:${data.aws_partition.current.partition}:ecs:${var.aws_region}:${local.account_id}:service/image-service/frontend",
+    ]
+  }
 }
 
 resource "aws_iam_role_policy" "github_actions" {
