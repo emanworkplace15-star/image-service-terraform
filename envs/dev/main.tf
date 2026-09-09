@@ -20,6 +20,9 @@ locals {
   account_id   = data.aws_caller_identity.current.account_id
   name_prefix  = "image-service"
   frontend_url = "http://${module.alb.alb_dns_name}" # no domain/cert in dev yet
+  # The static frontend is served by CloudFront (HTTPS by default) —
+  # this is the origin browsers come from now, so CORS follows it.
+  static_origin = module.static_site.domain
 
   # CI pushes :latest — the instance and the Lambda run it until a
   # deployment pins a SHA tag (workflows update the Lambda; the instance
@@ -42,9 +45,20 @@ module "github_oidc" {
     "image-service-frontend",
     "image-processor-lambda",
   ]
-  lambda_function_name = "image-processor-lambda"
-  aws_region           = var.aws_region
-  ecr_repository_arns  = values(module.ecr.repository_arns)
+  lambda_function_name        = "image-processor-lambda"
+  aws_region                  = var.aws_region
+  ecr_repository_arns         = values(module.ecr.repository_arns)
+  static_bucket_arn           = module.static_site.bucket_arn
+  cloudfront_distribution_arn = "arn:aws:cloudfront::${local.account_id}:distribution/${module.static_site.distribution_id}"
+}
+
+# ---------------- Static frontend (replaces the ECS frontend service) ----
+# Next.js static export built by CI, synced to S3, served via CloudFront.
+
+module "static_site" {
+  source = "../../modules/static-site"
+
+  name_prefix = local.name_prefix
 }
 
 # ---------------- Task 2.1: network ----------------
@@ -78,8 +92,8 @@ module "s3" {
   source = "../../modules/s3"
 
   bucket_name         = "image-service-images-${local.account_id}"
-  allowed_origins     = [local.frontend_url]
-  expire_uploads_days = null # originals kept (compressed copies live in processed/)
+  allowed_origins     = [local.static_origin] # browser uploads come from CloudFront now
+  expire_uploads_days = null                  # originals kept (compressed copies live in processed/)
 }
 
 # ---------------- Task 2.5: ALB ----------------
@@ -101,20 +115,19 @@ module "alb" {
 module "ecs" {
   source = "../../modules/ecs"
 
-  name_prefix               = "image-service"
-  private_subnet_ids        = module.networking.private_subnet_ids
-  security_group_id         = module.networking.app_security_group_id
-  backend_target_group_arn  = module.alb.backend_target_group_arn
-  frontend_target_group_arn = module.alb.frontend_target_group_arn
-  app_secret_arn            = module.rds.app_secret_arn
-  bucket_arn                = module.s3.bucket_arn
-  sqs_queue_arn             = module.sqs.queue_arn
-  sqs_queue_url             = module.sqs.queue_url
-  ecr_registry              = "${local.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
-  image_tag                 = local.image_tag
-  s3_bucket                 = module.s3.bucket_name
-  aws_region                = var.aws_region
-  cors_origin               = local.frontend_url
+  name_prefix              = "image-service"
+  private_subnet_ids       = module.networking.private_subnet_ids
+  security_group_id        = module.networking.app_security_group_id
+  backend_target_group_arn = module.alb.backend_target_group_arn
+  app_secret_arn           = module.rds.app_secret_arn
+  bucket_arn               = module.s3.bucket_arn
+  sqs_queue_arn            = module.sqs.queue_arn
+  sqs_queue_url            = module.sqs.queue_url
+  ecr_registry             = "${local.account_id}.dkr.ecr.${var.aws_region}.amazonaws.com"
+  image_tag                = local.image_tag
+  s3_bucket                = module.s3.bucket_name
+  aws_region               = var.aws_region
+  cors_origin              = local.static_origin
 }
 
 # ---------------- Task 2.6: processor Lambda ----------------

@@ -19,10 +19,7 @@ variable "backend_target_group_arn" {
   type        = string
 }
 
-variable "frontend_target_group_arn" {
-  description = "ALB target group for the frontend (ip targets)."
-  type        = string
-}
+# frontend_target_group_arn REMOVED — static frontend on S3 + CloudFront.
 
 variable "app_secret_arn" {
   description = "App secret ARN (DATABASE_URL / JWT_SECRET / LAMBDA_API_KEY injection)."
@@ -76,11 +73,7 @@ variable "backend_port" {
   default     = 3001
 }
 
-variable "frontend_port" {
-  description = "Frontend container port."
-  type        = number
-  default     = 3000
-}
+# frontend_port REMOVED — static frontend on S3 + CloudFront.
 
 variable "desired_count" {
   description = "Tasks per service (single-tenant dev = 1)."

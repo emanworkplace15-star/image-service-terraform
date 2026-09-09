@@ -41,6 +41,18 @@ variable "ecr_repository_arns" {
   type        = list(string)
 }
 
+variable "static_bucket_arn" {
+  description = "Static frontend bucket ARN (CI syncs the export here)."
+  type        = string
+  default     = ""
+}
+
+variable "cloudfront_distribution_arn" {
+  description = "CloudFront distribution ARN the role may invalidate."
+  type        = string
+  default     = ""
+}
+
 variable "tags" {
   description = "Common tags applied to all resources."
   type        = map(string)

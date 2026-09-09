@@ -10,31 +10,8 @@
 
 # ---------------- Target groups ----------------
 
-resource "aws_lb_target_group" "frontend" {
-  name     = "${var.name_prefix}-frontend"
-  port     = var.frontend_port
-  protocol = "HTTP"
-  vpc_id   = var.vpc_id
-
-  # ALB -> Fargate task ENIs (ip targets): each ECS task registers itself
-  # through the service's load_balancer block — no static attachments here.
-  target_type = var.target_type
-
-  health_check {
-    enabled             = true
-    path                = "/"
-    protocol            = "HTTP"
-    matcher             = "200-299"
-    interval            = 30
-    healthy_threshold   = 2
-    unhealthy_threshold = 5
-    timeout             = 5
-  }
-
-  tags = merge(var.tags, {
-    Name = "${var.name_prefix}-frontend"
-  })
-}
+# Frontend target group REMOVED — the frontend is static now
+# (S3 + CloudFront); the ALB serves only the backend API.
 
 resource "aws_lb_target_group" "backend" {
   name     = "${var.name_prefix}-backend"
@@ -90,10 +67,11 @@ resource "aws_lb_listener" "http" {
   port              = 80
   protocol          = "HTTP"
 
-  # Default: the frontend catches everything.
+  # Default: the backend catches everything (the frontend is static on
+  # S3 + CloudFront and no longer goes through this ALB).
   default_action {
     type             = "forward"
-    target_group_arn = aws_lb_target_group.frontend.arn
+    target_group_arn = aws_lb_target_group.backend.arn
   }
 
   tags = merge(var.tags, {

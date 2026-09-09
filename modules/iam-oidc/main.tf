@@ -136,8 +136,33 @@ data "aws_iam_policy_document" "github_actions_permissions" {
     ]
     resources = [
       "arn:${data.aws_partition.current.partition}:ecs:${var.aws_region}:${local.account_id}:service/image-service/backend",
-      "arn:${data.aws_partition.current.partition}:ecs:${var.aws_region}:${local.account_id}:service/image-service/frontend",
     ]
+  }
+
+  # 5. Static frontend: sync the Next.js export to S3 and bust the CDN.
+  statement {
+    sid    = "StaticFrontendPublish"
+    effect = "Allow"
+    actions = [
+      "s3:PutObject",
+      "s3:DeleteObject",
+      "s3:ListBucket",
+      "s3:GetBucketLocation",
+    ]
+    resources = [
+      var.static_bucket_arn,
+      "${var.static_bucket_arn}/*",
+    ]
+  }
+
+  statement {
+    sid    = "StaticFrontendInvalidation"
+    effect = "Allow"
+    actions = [
+      "cloudfront:CreateInvalidation",
+      "cloudfront:GetInvalidation",
+    ]
+    resources = [var.cloudfront_distribution_arn]
   }
 }
 

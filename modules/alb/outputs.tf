@@ -3,10 +3,7 @@ output "alb_dns_name" {
   value       = aws_lb.main.dns_name
 }
 
-output "frontend_target_group_arn" {
-  description = "Frontend target group ARN."
-  value       = aws_lb_target_group.frontend.arn
-}
+# frontend_target_group_arn output REMOVED — frontend is static now.
 
 output "backend_target_group_arn" {
   description = "Backend target group ARN."

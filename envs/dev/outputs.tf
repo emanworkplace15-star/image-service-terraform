@@ -1,6 +1,21 @@
 output "alb_url" {
-  description = "Public entry point — frontend origin and API base URL."
+  description = "Backend API base URL (the Lambda calls the backend here)."
   value       = local.frontend_url
+}
+
+output "static_site_url" {
+  description = "Frontend entry point (CloudFront, HTTPS)."
+  value       = module.static_site.domain
+}
+
+output "static_distribution_id" {
+  description = "CloudFront distribution id (CI invalidations)."
+  value       = module.static_site.distribution_id
+}
+
+output "static_bucket_name" {
+  description = "Static frontend bucket (CI syncs the Next.js export here)."
+  value       = module.static_site.bucket_name
 }
 
 output "rds_endpoint" {
@@ -39,8 +54,8 @@ output "ecs_cluster_name" {
 }
 
 output "ecs_service_ids" {
-  description = "Backend and frontend service ids (rollouts / debugging)."
-  value       = { backend = module.ecs.backend_service_id, frontend = module.ecs.frontend_service_id }
+  description = "Backend service id (rollouts / debugging). Frontend is static now."
+  value       = { backend = module.ecs.backend_service_id }
 }
 
 output "backend_task_role_arn" {

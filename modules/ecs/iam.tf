@@ -114,24 +114,12 @@ resource "aws_iam_role_policy" "backend" {
   policy = data.aws_iam_policy_document.backend_permissions.json
 }
 
-# ---------------- Frontend task role (bare) ----------------
-
-resource "aws_iam_role" "frontend" {
-  name               = local.frontend_role_name
-  description        = "Frontend on ECS: no AWS permissions (credential chain present)"
-  assume_role_policy = data.aws_iam_policy_document.ecs_assume.json
-
-  tags = var.tags
-}
+# Frontend task role REMOVED — static frontend makes no AWS calls and
+# runs nowhere (S3 + CloudFront serve it).
 
 output "task_role_arn" {
   description = "Backend task role ARN (S3 + SQS consumer)."
   value       = aws_iam_role.backend.arn
-}
-
-output "frontend_task_role_arn" {
-  description = "Frontend task role ARN (bare)."
-  value       = aws_iam_role.frontend.arn
 }
 
 output "execution_role_arn" {

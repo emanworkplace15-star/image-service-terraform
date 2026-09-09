@@ -25,12 +25,7 @@ resource "aws_cloudwatch_log_group" "backend" {
   tags = var.tags
 }
 
-resource "aws_cloudwatch_log_group" "frontend" {
-  name              = "/${var.name_prefix}/frontend"
-  retention_in_days = var.log_retention_days
-
-  tags = var.tags
-}
+# Frontend log group REMOVED — static frontend has no container logs.
 
 # ---------------- Cluster ----------------
 
@@ -104,45 +99,8 @@ resource "aws_ecs_task_definition" "backend" {
   })
 }
 
-resource "aws_ecs_task_definition" "frontend" {
-  family                   = "${var.name_prefix}-frontend"
-  requires_compatibilities = ["FARGATE"]
-  network_mode             = "awsvpc"
-  cpu                      = var.task_cpu
-  memory                   = var.task_memory
-
-  # The frontend makes no AWS API calls — a bare task role keeps the
-  # credential chain present-but-privilegeless.
-  task_role_arn      = aws_iam_role.frontend.arn
-  execution_role_arn = aws_iam_role.execution.arn
-
-  container_definitions = jsonencode([
-    {
-      name      = "frontend"
-      image     = "${var.ecr_registry}/image-service-frontend:${var.image_tag}"
-      essential = true
-
-      portMappings = [
-        { containerPort = var.frontend_port, protocol = "tcp" }
-      ]
-
-      logConfiguration = {
-        logDriver = "awslogs"
-        options = {
-          awslogs-group         = aws_cloudwatch_log_group.frontend.name
-          awslogs-region        = var.aws_region
-          awslogs-stream-prefix = "frontend"
-          # no awslogs-create-group: Fargate rejects it when false, and
-          # Terraform creates the group anyway
-        }
-      }
-    }
-  ])
-
-  tags = merge(var.tags, {
-    Name = "${var.name_prefix}-frontend"
-  })
-}
+# Frontend task definition REMOVED — the frontend is static now
+# (Next.js export on S3 + CloudFront, see modules/static-site).
 
 # ---------------- Services ----------------
 
@@ -174,31 +132,7 @@ resource "aws_ecs_service" "backend" {
   })
 }
 
-resource "aws_ecs_service" "frontend" {
-  name            = "frontend"
-  cluster         = aws_ecs_cluster.main.id
-  task_definition = aws_ecs_task_definition.frontend.arn
-  desired_count   = var.desired_count
-  launch_type     = "FARGATE"
-
-  network_configuration {
-    subnets          = var.private_subnet_ids
-    security_groups  = [var.security_group_id]
-    assign_public_ip = false
-  }
-
-  load_balancer {
-    target_group_arn = var.frontend_target_group_arn
-    container_name   = "frontend"
-    container_port   = var.frontend_port
-  }
-
-  health_check_grace_period_seconds = 30
-
-  tags = merge(var.tags, {
-    Name = "${var.name_prefix}-frontend"
-  })
-}
+# Frontend service REMOVED — static frontend lives on S3 + CloudFront.
 
 output "cluster_name" {
   description = "ECS cluster name."
@@ -210,7 +144,4 @@ output "backend_service_id" {
   value       = aws_ecs_service.backend.id
 }
 
-output "frontend_service_id" {
-  description = "Frontend service id."
-  value       = aws_ecs_service.frontend.id
-}
+# frontend_service_id output REMOVED — no frontend service anymore.

@@ -25,11 +25,7 @@ variable "target_type" {
   default     = "ip"
 }
 
-variable "frontend_port" {
-  description = "Frontend container port."
-  type        = number
-  default     = 3000
-}
+# frontend_port REMOVED — frontend is static now.
 
 variable "backend_port" {
   description = "Backend container port."
